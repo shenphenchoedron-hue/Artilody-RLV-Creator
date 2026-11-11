@@ -2,6 +2,14 @@
 
 Make Real Life Videos (MP4 + GPX + XML) from GoPro recordings.
 
+### New in 1.1.0: a fresh look
+- New dark theme with blue accents and a matching set of icons.
+- Welcome screen with a big *Open GoPro video(s)…* button and a three-step guide (Open → Cut → Export). Files can be dropped onto it.
+- New toolbar with a highlighted **Export** button. Distance, speed and elevation are shown as badges at the top right.
+- Playback bar with a round play button, a large time display and a red **Cut out** button.
+- Dark map with a glowing route, green start and amber end markers; darker timeline with a shaded elevation profile.
+- The window fits smaller screens (minimum 1157×804).
+
 - Reads GPS from GoPro videos (GPS5 / GPS9). Chapter files of one ride are joined automatically.
 - Cut out parts of the film: the same seconds are removed from the video and the GPS data, and the film closes the gap at once.
 - Unlimited undo / redo. Removed parts can also be restored one by one.

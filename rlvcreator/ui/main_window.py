@@ -7,16 +7,17 @@ import traceback
 from typing import List, Optional
 
 from PySide6.QtCore import QEvent, QObject, QSettings, QSize, Qt, QThread, QUrl, Signal, Slot
-from PySide6.QtGui import QAction, QDesktopServices, QKeySequence
+from PySide6.QtGui import QAction, QDesktopServices, QKeySequence, QPixmap
 from PySide6.QtWidgets import (QAbstractSpinBox, QApplication, QComboBox, QFileDialog, QFrame, QHBoxLayout,
                                QLabel, QLineEdit, QMainWindow, QMessageBox, QProgressDialog, QPushButton,
-                               QSplitter, QStackedWidget, QStyle, QTabWidget, QTextEdit, QToolButton,
+                               QSizePolicy, QSplitter, QStackedWidget, QTabWidget, QTextEdit, QToolButton,
                                QVBoxLayout, QWidget, QAbstractItemView)
 
 from .. import __version__, exporters
 from ..project import FPS, Project
 from ..sensors import load_sensor_file
 from .common import fmt_distance, fmt_frames
+from . import icons, theme
 from .export_dialog import ExportDialog
 from .mapview import MapView
 from .panels import CutsPanel, GpsPanel, RoutePanel
@@ -24,6 +25,7 @@ from .player import EditedPlayer
 from .thumbs import ThumbnailLoader
 from .timeline import Timeline
 from .videoview import VideoView
+from .welcome import WelcomeScreen
 
 VIDEO_FILTER = "GoPro / MP4 video (*.mp4 *.MP4 *.mov *.MOV *.lrv *.LRV);;All files (*)"
 PROJECT_FILTER = "RLV Creator project (*.rlvproj);;All files (*)"
@@ -89,37 +91,12 @@ class MainWindow(QMainWindow):
         # ---------------- video area
         self.video = VideoView()
         self.video.setMinimumSize(480, 270)
-        welcome = QWidget()
-        wl = QVBoxLayout(welcome)
-        wl.addStretch()
-        t = QLabel("<h1>Artilody RLV Creator</h1><p>Create Real Life Videos from GoPro recordings.</p>"
-                   "<p>Open one or more GoPro video files (chapters of one ride are joined automatically),<br>"
-                   "or drop them onto this window.</p>")
-        t.setAlignment(Qt.AlignCenter)
-        wl.addWidget(t)
-        b = QPushButton("  Open GoPro video(s)…")
-        b.setIcon(self.style().standardIcon(QStyle.SP_DialogOpenButton))
-        b.setIconSize(QSize(28, 28))
-        b.setMinimumHeight(52)
-        b.setStyleSheet("font-size: 16px; padding: 6px 24px;")
-        b.clicked.connect(self.open_videos)
-        bl = QHBoxLayout()
-        bl.addStretch()
-        bl.addWidget(b)
-        bl.addStretch()
-        wl.addLayout(bl)
-        b2 = QPushButton("Open project…")
-        b2.setFlat(True)
-        b2.clicked.connect(self.open_project)
-        bl2 = QHBoxLayout()
-        bl2.addStretch()
-        bl2.addWidget(b2)
-        bl2.addStretch()
-        wl.addLayout(bl2)
-        wl.addStretch()
+        self.welcome = WelcomeScreen()
+        self.welcome.openVideos.connect(self.open_videos)
+        self.welcome.openProject.connect(self.open_project)
         self.stack = QStackedWidget()
-        self.stack.addWidget(welcome)
-        self.stack.addWidget(self.video)
+        self.stack.addWidget(self.welcome)
+        self.stack.addWidget(self._rounded(self.video))
 
         self.player = EditedPlayer(self.video.item, self)
         self.player.positionChanged.connect(self._on_position)
@@ -139,8 +116,9 @@ class MainWindow(QMainWindow):
         self.cuts_panel = CutsPanel()
         self.cuts_panel.restoreRequested.connect(self._restore)
         self.tabs = QTabWidget()
+        self.tabs.setDocumentMode(False)
         self.tabs.addTab(self.map, "Map")
-        self.tabs.addTab(self.route_panel, "Route info (XML)")
+        self.tabs.addTab(self.route_panel, "Route info")
         self.tabs.addTab(self.gps_panel, "GPS")
         self.tabs.addTab(self.cuts_panel, "Cuts")
 
@@ -149,49 +127,64 @@ class MainWindow(QMainWindow):
         split.addWidget(self.tabs)
         split.setStretchFactor(0, 3)
         split.setStretchFactor(1, 2)
-        split.setSizes([860, 540])
+        split.setSizes([880, 520])
 
         # ---------------- actions
         self._make_actions()
 
-        # ---------------- transport bar
-        bar = QHBoxLayout()
+        # ---------------- transport / edit bar (a card)
+        bar_card = QFrame()
+        bar_card.setObjectName("card")
+        bar_card.setStyleSheet("QToolButton { padding: 5px 6px; }")
+        bar = QHBoxLayout(bar_card)
+        bar.setContentsMargins(10, 6, 10, 6)
         bar.setSpacing(4)
 
-        def tb(action: QAction) -> QToolButton:
+        def tb(action: QAction, text: bool = False, size: int = 20) -> QToolButton:
             w = QToolButton()
             w.setDefaultAction(action)
-            w.setToolButtonStyle(Qt.ToolButtonTextBesideIcon if action.text().startswith(("✂", "Mark", "Undo", "Redo"))
-                                 else Qt.ToolButtonIconOnly)
-            w.setAutoRaise(True)
+            w.setIconSize(QSize(size, size))
+            w.setToolButtonStyle(Qt.ToolButtonTextBesideIcon if text else Qt.ToolButtonIconOnly)
+            w.setCursor(Qt.PointingHandCursor)
             return w
 
-        for a in (self.act_start, self.act_back_s, self.act_back_f, self.act_play, self.act_fwd_f,
-                  self.act_fwd_s, self.act_end):
-            bar.addWidget(tb(a))
+        for a in (self.act_start, self.act_back_s, self.act_back_f):
+            bar.addWidget(tb(a, size=18))
+        self.play_btn = tb(self.act_play, size=22)
+        self.play_btn.setObjectName("play")
+        self.play_btn.setFixedSize(42, 42)
+        bar.addWidget(self.play_btn)
+        for a in (self.act_fwd_f, self.act_fwd_s, self.act_end):
+            bar.addWidget(tb(a, size=18))
+        bar.addSpacing(8)
         self.time_label = QLabel("00:00.00 / 00:00.00")
-        self.time_label.setStyleSheet("font-family: monospace; font-size: 14px; padding: 0 10px;")
+        self.time_label.setObjectName("time")
         bar.addWidget(self.time_label)
+        bar.addSpacing(12)
         bar.addWidget(self._vline())
-        for a in (self.act_mark_in, self.act_mark_out):
-            bar.addWidget(tb(a))
-        self.cut_btn = QPushButton("✂  Cut out selection")
-        self.cut_btn.setStyleSheet("QPushButton { font-weight: bold; padding: 4px 12px; }"
-                                   "QPushButton:enabled { background: #c0392b; color: white; border-radius: 4px; }")
+        bar.addSpacing(6)
+        bar.addWidget(tb(self.act_mark_in, text=True))
+        bar.addWidget(tb(self.act_mark_out, text=True))
+        self.cut_btn = QPushButton("  Cut out")
+        self.cut_btn.setObjectName("danger")
+        self.cut_btn.setIcon(icons.icon("scissors", "#ffffff"))
+        self.cut_btn.setIconSize(QSize(18, 18))
+        self.cut_btn.setCursor(Qt.PointingHandCursor)
+        self.cut_btn.setToolTip("Remove the marked part from video and GPS (Delete)")
         self.cut_btn.clicked.connect(self.cut_selection)
         bar.addWidget(self.cut_btn)
         bar.addWidget(tb(self.act_cut_before))
         bar.addWidget(tb(self.act_cut_after))
-        bar.addWidget(self._vline())
-        bar.addWidget(tb(self.act_undo))
-        bar.addWidget(tb(self.act_redo))
         bar.addStretch()
-        self.gps_label = QLabel()
-        self.gps_label.setStyleSheet("font-family: monospace;")
-        bar.addWidget(self.gps_label)
+        self.chip_dist = self._chip("—")
+        self.chip_speed = self._chip("—")
+        self.chip_ele = self._chip("—")
+        self.chip_dist.setToolTip("Distance from the start of the film")
+        self.chip_speed.setToolTip("GPS speed")
+        self.chip_ele.setToolTip("Elevation")
         self.mute_btn = QToolButton()
         self.mute_btn.setCheckable(True)
-        self.mute_btn.setAutoRaise(True)
+        self.mute_btn.setIconSize(QSize(18, 18))
         self.mute_btn.setChecked(self.settings.value("muted", True, bool))
         self.mute_btn.toggled.connect(self._mute)
         self._mute(self.mute_btn.isChecked())
@@ -203,10 +196,11 @@ class MainWindow(QMainWindow):
 
         central = QWidget()
         cl = QVBoxLayout(central)
-        cl.setContentsMargins(6, 6, 6, 6)
+        cl.setContentsMargins(10, 4, 10, 8)
+        cl.setSpacing(8)
         cl.addWidget(split, 1)
-        cl.addLayout(bar)
-        cl.addWidget(self.timeline)
+        cl.addWidget(bar_card)
+        cl.addWidget(self._rounded(self.timeline))
         self.setCentralWidget(central)
 
         self._make_menus()
@@ -222,14 +216,33 @@ class MainWindow(QMainWindow):
     @staticmethod
     def _vline() -> QFrame:
         f = QFrame()
-        f.setFrameShape(QFrame.VLine)
-        f.setFrameShadow(QFrame.Sunken)
+        f.setFixedWidth(1)
+        f.setFixedHeight(26)
+        f.setStyleSheet(f"background: {theme.BORDER};")
         return f
+
+    @staticmethod
+    def _chip(text: str) -> QLabel:
+        lab = QLabel(text)
+        lab.setObjectName("chip")
+        lab.setMinimumWidth(74)
+        lab.setAlignment(Qt.AlignCenter)
+        return lab
+
+    @staticmethod
+    def _rounded(w: QWidget) -> QWidget:
+        """Wrap a widget in a frame with rounded corners."""
+        frame = QFrame()
+        frame.setObjectName("card")
+        lay = QVBoxLayout(frame)
+        lay.setContentsMargins(4, 4, 4, 4)
+        lay.addWidget(w)
+        return frame
 
     def _act(self, text: str, slot, shortcut=None, icon=None, tip: str = "") -> QAction:
         a = QAction(text, self)
         if icon is not None:
-            a.setIcon(self.style().standardIcon(icon) if isinstance(icon, QStyle.StandardPixmap) else icon)
+            a.setIcon(icons.icon(icon) if isinstance(icon, str) else icon)
         if shortcut:
             a.setShortcut(QKeySequence(shortcut))
         a.setToolTip((tip or text.replace("&", "")) + (f"  ({QKeySequence(shortcut).toString()})" if shortcut else ""))
@@ -237,39 +250,35 @@ class MainWindow(QMainWindow):
         return a
 
     def _make_actions(self) -> None:
-        S = QStyle
-        self.act_open = self._act("&Open video(s)…", self.open_videos, QKeySequence.Open, S.SP_DialogOpenButton)
+        self.act_open = self._act("&Open video(s)…", self.open_videos, QKeySequence.Open, "folder")
         self.act_open_proj = self._act("Open &project…", self.open_project, "Ctrl+Shift+O")
-        self.act_save = self._act("&Save project", self.save_project, QKeySequence.Save, S.SP_DialogSaveButton)
+        self.act_save = self._act("&Save project", self.save_project, QKeySequence.Save, "save")
         self.act_save_as = self._act("Save project &as…", self.save_project_as, QKeySequence.SaveAs)
-        self.act_export = self._act("&Export MP4 + GPX + XML…", self.export, "Ctrl+E", S.SP_DriveHDIcon,
-                                    "Export the finished RLV")
+        self.act_export = self._act("&Export…", self.export, "Ctrl+E", icons.icon("export", "#ffffff"),
+                                    "Export MP4 + GPX + XML")
         self.act_import_xml = self._act("Import route info from XML…", self.import_xml)
         self.act_import_sensors = self._act("Import heart rate / cadence (GPX/TCX)…", self.import_sensors)
         self.act_ffmpeg = self._act("Set FFmpeg location…", self.set_ffmpeg)
         self.act_quit = self._act("&Quit", self.close, QKeySequence.Quit)
-        self.act_undo = self._act("Undo", self.undo, QKeySequence.Undo, S.SP_ArrowBack)
-        self.act_redo = self._act("Redo", self.redo, "Ctrl+Y", S.SP_ArrowForward)
+        self.act_undo = self._act("Undo", self.undo, QKeySequence.Undo, "undo")
+        self.act_redo = self._act("Redo", self.redo, "Ctrl+Y", "redo")
         self.act_redo2 = self._act("Redo", self.redo, "Ctrl+Shift+Z")
         self.addAction(self.act_redo2)
-        self.act_play = self._act("Play", lambda: self.player.toggle(), None, S.SP_MediaPlay, "Play / pause (Space)")
-        self.act_start = self._act("Start", lambda: self.seek(0), None, S.SP_MediaSkipBackward, "Go to start (Home)")
-        self.act_end = self._act("End", lambda: self.seek(10 ** 9), None, S.SP_MediaSkipForward, "Go to end (End)")
-        self.act_back_f = self._act("-1 frame", lambda: self.player.step(-1), None, S.SP_MediaSeekBackward,
-                                    "One frame back (←)")
-        self.act_fwd_f = self._act("+1 frame", lambda: self.player.step(1), None, S.SP_MediaSeekForward,
-                                   "One frame forward (→)")
-        self.act_back_s = self._act("-1 s", lambda: self.player.step(-FPS), None, S.SP_ArrowLeft,
-                                    "One second back (Shift+←)")
-        self.act_fwd_s = self._act("+1 s", lambda: self.player.step(FPS), None, S.SP_ArrowRight,
-                                   "One second forward (Shift+→)")
-        self.act_mark_in = self._act("Mark start [I]", self.mark_in, None, None, "Mark the start of the part to remove (I)")
-        self.act_mark_out = self._act("Mark end [O]", self.mark_out, None, None, "Mark the end of the part to remove (O)")
-        self.act_cut = self._act("✂ Cut out selection", self.cut_selection, None, None,
+        self.act_play = self._act("Play", lambda: self.player.toggle(), None, icons.icon("play", "#ffffff"),
+                                  "Play / pause (Space)")
+        self.act_start = self._act("Start", lambda: self.seek(0), None, "skip_start", "Go to start (Home)")
+        self.act_end = self._act("End", lambda: self.seek(10 ** 9), None, "skip_end", "Go to end (End)")
+        self.act_back_f = self._act("-1 frame", lambda: self.player.step(-1), None, "frame_back", "One frame back (←)")
+        self.act_fwd_f = self._act("+1 frame", lambda: self.player.step(1), None, "frame_fwd", "One frame forward (→)")
+        self.act_back_s = self._act("-1 s", lambda: self.player.step(-FPS), None, "sec_back", "One second back (Shift+←)")
+        self.act_fwd_s = self._act("+1 s", lambda: self.player.step(FPS), None, "sec_fwd", "One second forward (Shift+→)")
+        self.act_mark_in = self._act("Mark in", self.mark_in, None, "mark_in", "Mark the start of the part to remove (I)")
+        self.act_mark_out = self._act("Mark out", self.mark_out, None, "mark_out", "Mark the end of the part to remove (O)")
+        self.act_cut = self._act("Cut out selection", self.cut_selection, None, "scissors",
                                  "Remove the marked part from video and GPS (Delete)")
-        self.act_cut_before = self._act("✂ Start→here", self.cut_before, None, None,
+        self.act_cut_before = self._act("Cut start → here", self.cut_before, None, "trim_start",
                                         "Remove everything before the playhead")
-        self.act_cut_after = self._act("✂ Here→end", self.cut_after, None, None,
+        self.act_cut_after = self._act("Cut here → end", self.cut_after, None, "trim_end",
                                        "Remove everything after the playhead")
         self.act_clear_sel = self._act("Clear selection", self.clear_selection)
         self.act_zoom_fit = self._act("Zoom timeline to fit", lambda: self.timeline.zoom_fit())
@@ -299,9 +308,34 @@ class MainWindow(QMainWindow):
         t.setObjectName("main_toolbar")
         t.setMovable(False)
         t.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-        t.setIconSize(QSize(20, 20))
-        for a in (self.act_open, self.act_save, None, self.act_undo, self.act_redo, None, self.act_export):
+        t.setIconSize(QSize(18, 18))
+        logo = QLabel()
+        path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "resources", "icon.png")
+        if os.path.exists(path):
+            logo.setPixmap(QPixmap(path).scaled(26, 26, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        t.addWidget(logo)
+        name = QLabel(" RLV Creator  ")
+        name.setStyleSheet("font-weight: 800; font-size: 11pt;")
+        t.addWidget(name)
+        t.addSeparator()
+        for a in (self.act_open, self.act_save, None, self.act_undo, self.act_redo):
             t.addSeparator() if a is None else t.addAction(a)
+        spacer = QWidget()
+        spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        t.addWidget(spacer)
+        for c in (self.chip_dist, self.chip_speed, self.chip_ele):
+            t.addWidget(c)
+            t.addWidget(QLabel(" "))
+        self.title_label = QLabel()
+        self.title_label.setObjectName("muted")
+        t.addWidget(QLabel("   "))
+        t.addWidget(self.title_label)
+        t.addWidget(QLabel("  "))
+        t.addAction(self.act_export)
+        w = t.widgetForAction(self.act_export)
+        if w is not None:
+            w.setObjectName("primary")
+            w.setCursor(Qt.PointingHandCursor)
 
     # ------------------------------------------------------------- loading
     def open_videos(self) -> None:
@@ -375,6 +409,7 @@ class MainWindow(QMainWindow):
         self.route_panel.set_project(project)
         self.gps_panel.set_project(project)
         self.cuts_panel.set_project(project)
+        self.map.placeholder = "No GPS data in this video" if project else "Open a video to see the route"
         self._start_thumbs(project)
         self._edit_changed(refit=True, record_dirty=False)
         self.player.set_project(project)
@@ -516,7 +551,8 @@ class MainWindow(QMainWindow):
         p = self.project
         if not p:
             self.time_label.setText("00:00.00 / 00:00.00")
-            self.gps_label.setText("")
+            for c in (self.chip_dist, self.chip_speed, self.chip_ele):
+                c.setText("—")
             return
         self.time_label.setText(f"{fmt_frames(f)} / {fmt_frames(p.output_frames)}")
         if p.has_gps:
@@ -524,12 +560,16 @@ class MainWindow(QMainWindow):
             lat, lon, ele, spd = p.track.at(src_t)
             self.map.set_position(lat, lon)
             d = p.distance_at_output_time(f / FPS)
-            self.gps_label.setText(f"{fmt_distance(d):>9}   {spd * 3.6:5.1f} km/h   {ele:6.1f} m  ")
+            self.chip_dist.setText(f"⟷ {fmt_distance(d)}")
+            self.chip_speed.setText(f"{spd * 3.6:.1f} km/h")
+            self.chip_ele.setText(f"▲ {ele:.0f} m")
         else:
-            self.gps_label.setText("no GPS  ")
+            self.chip_dist.setText("no GPS")
+            self.chip_speed.setText("—")
+            self.chip_ele.setText("—")
 
     def _on_playing(self, playing: bool) -> None:
-        self.act_play.setIcon(self.style().standardIcon(QStyle.SP_MediaPause if playing else QStyle.SP_MediaPlay))
+        self.act_play.setIcon(icons.icon("pause" if playing else "play", "#ffffff"))
 
     def _selection_changed(self) -> None:
         sel = self.timeline.selection()
@@ -560,6 +600,8 @@ class MainWindow(QMainWindow):
         name = self.project.name if self.project else ""
         star = " *" if self.dirty else ""
         self.setWindowTitle(f"{name}{star} - Artilody RLV Creator" if name else "Artilody RLV Creator")
+        if hasattr(self, "title_label"):
+            self.title_label.setText(f"{name}{star}")
 
     def _mark_dirty_meta(self) -> None:
         self.dirty = True
@@ -567,7 +609,7 @@ class MainWindow(QMainWindow):
 
     def _mute(self, muted: bool) -> None:
         self.player.set_muted(muted)
-        self.mute_btn.setIcon(self.style().standardIcon(QStyle.SP_MediaVolumeMuted if muted else QStyle.SP_MediaVolume))
+        self.mute_btn.setIcon(icons.icon("mute" if muted else "volume"))
         self.mute_btn.setToolTip("Unmute preview" if muted else "Mute preview")
         self.settings.setValue("muted", muted)
 
@@ -708,8 +750,13 @@ class MainWindow(QMainWindow):
     def dragEnterEvent(self, ev) -> None:
         if ev.mimeData().hasUrls():
             ev.acceptProposedAction()
+            self.welcome.set_drag_hover(True)
+
+    def dragLeaveEvent(self, ev) -> None:
+        self.welcome.set_drag_hover(False)
 
     def dropEvent(self, ev) -> None:
+        self.welcome.set_drag_hover(False)
         paths = [u.toLocalFile() for u in ev.mimeData().urls() if u.isLocalFile()]
         proj = [p for p in paths if p.lower().endswith(".rlvproj")]
         vids = [p for p in paths if p.lower().endswith((".mp4", ".mov", ".lrv"))]

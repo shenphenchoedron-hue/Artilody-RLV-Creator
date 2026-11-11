@@ -6,7 +6,7 @@ import bisect
 from typing import Callable, Dict, List, Optional, Tuple
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QImage, QMouseEvent, QPainter, QPainterPath, QPen, QWheelEvent
+from PySide6.QtGui import QColor, QFont, QImage, QLinearGradient, QMouseEvent, QPainter, QPainterPath, QPen, QWheelEvent
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
 from ..project import FPS
@@ -120,17 +120,17 @@ class Timeline(QWidget):
         p.setRenderHint(QPainter.Antialiasing)
         W, H = self.width(), self.height()
         pal = self.palette()
-        p.fillRect(self.rect(), QColor(32, 34, 40))
+        p.fillRect(self.rect(), QColor(22, 25, 31))
         if self.total <= 0:
             p.setPen(QColor(150, 150, 150))
-            p.drawText(self.rect(), Qt.AlignCenter, "Open a GoPro video to start  (File ▸ Open video…)")
+            p.drawText(self.rect(), Qt.AlignCenter, "The timeline appears here when a video is open")
             return
         track = QRectF(0, RULER_H, W, H - RULER_H)
-        p.fillRect(track, QColor(44, 48, 58))
+        p.fillRect(track, QColor(26, 30, 38))
 
         # film strip (thumbnails of the edited film)
         strip = QRectF(0, RULER_H, W, STRIP_H)
-        p.fillRect(strip, QColor(20, 20, 24))
+        p.fillRect(strip, QColor(14, 16, 20))
         if self._thumb_keys and self.out_to_src:
             tw = STRIP_H * 16 / 9
             x = 0.0
@@ -162,8 +162,11 @@ class Timeline(QWidget):
                 path.lineTo(x, y)
             path.lineTo(self._x((s1 - 1) * FPS), bot)
             path.closeSubpath()
-            p.fillPath(path, QColor(70, 130, 180, 120))
-            p.setPen(QPen(QColor(110, 170, 220), 1.2))
+            grad = QLinearGradient(0, top, 0, bot)
+            grad.setColorAt(0, QColor(61, 139, 253, 150))
+            grad.setColorAt(1, QColor(61, 139, 253, 20))
+            p.fillPath(path, grad)
+            p.setPen(QPen(QColor(110, 170, 255), 1.5))
             p.drawPath(path)
             p.setPen(QColor(170, 190, 210))
             p.setFont(QFont(self.font().family(), 8))
@@ -175,7 +178,7 @@ class Timeline(QWidget):
             p.drawText(QRectF(8, prof.top() + 4, W, 14), Qt.AlignLeft, "No GPS data - no elevation profile")
 
         # ruler
-        p.fillRect(QRectF(0, 0, W, RULER_H), QColor(26, 27, 32))
+        p.fillRect(QRectF(0, 0, W, RULER_H), QColor(18, 21, 27))
         span_s = (self.view1 - self.view0) / FPS
         steps = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600]
         target = span_s / max(1, W / 90)
@@ -190,7 +193,7 @@ class Timeline(QWidget):
             t += step
 
         # join (cut) markers
-        pen = QPen(QColor(255, 170, 0), 2)
+        pen = QPen(QColor(245, 165, 36), 2)
         for j in self.joins:
             if self.view0 <= j <= self.view1:
                 x = self._x(j)
@@ -201,7 +204,7 @@ class Timeline(QWidget):
                 tri.lineTo(x + 5, RULER_H)
                 tri.lineTo(x, RULER_H + 7)
                 tri.closeSubpath()
-                p.fillPath(tri, QColor(255, 170, 0))
+                p.fillPath(tri, QColor(245, 165, 36))
 
         # selection
         sel = self.selection()
@@ -212,8 +215,8 @@ class Timeline(QWidget):
         if sel:
             x0, x1 = self._x(sel[0]), self._x(sel[1])
             r = QRectF(x0, RULER_H, max(2, x1 - x0), H - RULER_H)
-            p.fillRect(r, QColor(230, 60, 60, 90))
-            p.setPen(QPen(QColor(255, 80, 80), 2))
+            p.fillRect(r, QColor(229, 72, 77, 85))
+            p.setPen(QPen(QColor(229, 72, 77), 2))
             p.drawLine(QPointF(x0, RULER_H), QPointF(x0, H))
             p.drawLine(QPointF(x1, RULER_H), QPointF(x1, H))
             if x1 - x0 > 110:

@@ -35,6 +35,7 @@ class MapView(QWidget):
         self.center: Optional[Pt] = None
         self._drag: Optional[Tuple[QPointF, Pt]] = None
         self._moved = False
+        self.placeholder = "Open a video to see the route"
         self.setToolTip("Click the route to jump there  ·  Wheel: zoom  ·  Drag: pan  ·  Double-click: fit")
 
     def set_tracks(self, source_latlon: List[Pt], route_latlon: List[Pt], refit: bool = False) -> None:
@@ -89,16 +90,23 @@ class MapView(QWidget):
     def paintEvent(self, _ev) -> None:
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
-        p.fillRect(self.rect(), QColor(236, 240, 232))
+        p.fillRect(self.rect(), QColor(18, 22, 29))
+        p.setPen(QPen(QColor(32, 38, 48), 1))
+        for x in range(0, self.width(), 40):
+            p.drawLine(x, 0, x, self.height())
+        for y in range(0, self.height(), 40):
+            p.drawLine(0, y, self.width(), y)
         if not self.source and not self.route:
-            p.setPen(QColor(120, 120, 120))
-            p.drawText(self.rect(), Qt.AlignCenter | Qt.TextWordWrap, "No GPS data")
+            p.setPen(QColor(120, 128, 140))
+            p.drawText(self.rect(), Qt.AlignCenter | Qt.TextWordWrap, self.placeholder)
             return
         # removed parts are visible in grey under the route
-        p.setPen(QPen(QColor(170, 170, 170), 3, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+        p.setPen(QPen(QColor(78, 86, 100), 3, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
         p.drawPath(self._path(self.source))
         if self.route:
-            p.setPen(QPen(QColor(30, 100, 220), 3.5, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            p.setPen(QPen(QColor(61, 139, 253, 70), 10, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            p.drawPath(self._path(self.route))
+            p.setPen(QPen(QColor(90, 165, 255), 3.5, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
             # draw kept route as separate pieces so cut jumps are not drawn as lines
             piece: List[Pt] = [self.route[0]]
             limit = self._jump_limit()
@@ -116,19 +124,22 @@ class MapView(QWidget):
                     p.drawPath(self._path(seg))
             s = self._to_screen(self.route[0])
             e = self._to_screen(self.route[-1])
-            p.setPen(QPen(Qt.white, 2))
-            p.setBrush(QColor(40, 170, 60))
-            p.drawEllipse(s, 6, 6)
-            p.setBrush(QColor(20, 20, 20))
-            p.drawEllipse(e, 6, 6)
+            p.setPen(QPen(QColor(18, 22, 29), 2))
+            p.setBrush(QColor(48, 164, 108))
+            p.drawEllipse(s, 7, 7)
+            p.setBrush(QColor(245, 165, 36))
+            p.drawEllipse(e, 7, 7)
         if self.pos:
             q = self._to_screen(self.pos)
-            p.setPen(QPen(Qt.white, 2.5))
-            p.setBrush(QColor(240, 60, 40))
+            p.setPen(Qt.NoPen)
+            p.setBrush(QColor(255, 255, 255, 50))
+            p.drawEllipse(q, 15, 15)
+            p.setPen(QPen(Qt.white, 3))
+            p.setBrush(QColor(229, 72, 77))
             p.drawEllipse(q, 8, 8)
-        p.setPen(QColor(90, 90, 90))
+        p.setPen(QColor(139, 147, 163))
         p.drawText(QRectF(6, self.height() - 20, self.width() - 12, 16), Qt.AlignLeft,
-                   "● start   ● end   blue: film   grey: cut away")
+                   "green: start   amber: end   blue: film   grey: cut away")
 
     def _jump_limit(self) -> float:
         # ~ 60 m in mercator units at this latitude is far more than 1 s of travel by bike/car

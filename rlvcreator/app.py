@@ -51,7 +51,8 @@ def main() -> int:
     QCoreApplication.setApplicationVersion(__version__)
     app = QApplication(sys.argv)
     app.setApplicationDisplayName(APP_NAME)
-    app.setStyle("Fusion")
+    from .ui import theme
+    theme.apply(app)
     icon = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resources", "icon.png")
     if os.path.exists(icon):
         app.setWindowIcon(QIcon(icon))

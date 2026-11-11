@@ -77,18 +77,19 @@ Then start *Artilody RLV Creator* from the application menu, or run `artilody-rl
 
 ## How to use it
 
-1. **Open the video:** Click *Open GoPro video(s)…* or drop the files onto the window. If the ride was
+1. **Open the video:** Click *Open GoPro video(s)…* on the start screen or drop the files onto the window. If the ride was
    split into several files, select all of them; they are put in order automatically.
 2. **Find the parts to remove:** Play the film (*Space*), drag in the timeline, or click on the map.
 3. **Mark a part:** Drag across the timeline with the mouse, or press **I** at the start and **O** at
    the end. You can drag the red edges to adjust the marking.
-4. **Cut it out:** Press **Delete** or click **✂ Cut out selection**. The part is removed from the video
-   and the GPS track, and the film closes the gap. Use *✂ Start→here* and *✂ Here→end* to trim the start
-   and end.
+4. **Cut it out:** Press **Delete** or click the red **✂ Cut out** button. The part is removed from the video
+   and the GPS track, and the film closes the gap. The two buttons next to it (*Cut start → here* and
+   *Cut here → end*) trim the start and end.
 5. **Made a mistake?** Press **Ctrl+Z** to undo and **Ctrl+Y** to redo.
-6. **Route info:** On the *Route info (XML)* tab, enter the title and country and add information texts.
-   Write `\n` for a line break.
-7. **Export:** Press **Ctrl+E** and choose a folder and name. You get `Name.mp4`, `Name.gpx` and `Name.xml`.
+6. **Route info:** On the *Route info* tab, enter the title and country and add information texts
+   (*+ Here* adds a text at the current position, *+ Summary* adds a route summary). Write `\n` for a line break.
+   Distance, speed and elevation at the current position are shown at the top right.
+7. **Export:** Click the blue **Export** button (or press **Ctrl+E**) and choose a folder and name. You get `Name.mp4`, `Name.gpx` and `Name.xml`.
 
 ### Keyboard shortcuts
 
