@@ -31,6 +31,14 @@ def main() -> int:
         print(__version__)
         return 0
     os.environ.setdefault("QT_LOGGING_RULES", "qt.multimedia.ffmpeg*=false")
+    # The Qt Wayland backend shipped with PySide6 draws popups and dialogs garbled on some
+    # compositors (e.g. KDE Plasma). XWayland (xcb) is reliable, so prefer it on Linux
+    # unless the user chose a platform or passes --wayland.
+    if sys.platform.startswith("linux") and "QT_QPA_PLATFORM" not in os.environ:
+        if "--wayland" in sys.argv:
+            sys.argv.remove("--wayland")
+        elif os.environ.get("DISPLAY"):
+            os.environ["QT_QPA_PLATFORM"] = "xcb"
     from PySide6.QtCore import QCoreApplication
     from PySide6.QtGui import QIcon
     from PySide6.QtWidgets import QApplication
