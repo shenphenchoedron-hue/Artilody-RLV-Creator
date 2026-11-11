@@ -61,6 +61,13 @@ class ExportDialog(QDialog):
         self.name = QLineEdit(sanitize_name(project.name or "route"))
         self.name.textChanged.connect(self._update_names)
         f.addRow("Name:", self.name)
+        self.title = QLineEdit(project.title or project.name)
+        self.title.setToolTip("Route title shown in the training app. Written to the XML, the GPX track "
+                              "and the video's title tag.")
+        # the title follows the name until the user gives it its own text
+        self._title_follows = not project.title or project.title == project.name
+        self.title.textEdited.connect(self._title_edited)
+        f.addRow("Title:", self.title)
         self.do_video = QCheckBox()
         self.do_gpx = QCheckBox()
         self.do_xml = QCheckBox()
@@ -184,7 +191,12 @@ class ExportDialog(QDialog):
         if d:
             self.folder.setText(d)
 
+    def _title_edited(self, _text: str) -> None:
+        self._title_follows = False
+
     def _update_names(self) -> None:
+        if getattr(self, "_title_follows", False):
+            self.title.setText(self.name.text().strip())
         n = sanitize_name(self.name.text() or "route")
         self.do_video.setText(f"Video   {n}.mp4")
         self.do_gpx.setText(f"GPS track   {n}.gpx")
@@ -232,6 +244,7 @@ class ExportDialog(QDialog):
         self.settings.setValue("audio", self.audio.isChecked())
 
         self.project.name = name
+        self.project.title = self.title.text().strip() or name
         try:
             if self.do_gpx.isChecked():
                 exporters.write_gpx(self.project, gpx_path)
@@ -245,7 +258,7 @@ class ExportDialog(QDialog):
             return
         st = ExportSettings(encoder=self.encoder.currentData(), quality=self.quality.value(),
                             preset=self.preset.currentData(), fit=self.fit.currentData(),
-                            audio=self.audio.isChecked())
+                            audio=self.audio.isChecked(), title=self.project.title)
         try:
             assert self.ffmpeg
             args, total = build_command(self.ffmpeg, self.project, mp4_path, st)

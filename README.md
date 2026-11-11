@@ -90,7 +90,8 @@ Then start *Artilody RLV Creator* from the application menu, or run `artilody-rl
 6. **Route info:** On the *Route info* tab, enter the title and country and add information texts
    (*+ Here* adds a text at the current position, *+ Summary* adds a route summary). Write `\n` for a line break.
    Distance, speed and elevation at the current position are shown at the top right.
-7. **Export:** Click the blue **Export** button (or press **Ctrl+E**) and choose a folder and name. You get `Name.mp4`, `Name.gpx` and `Name.xml`.
+7. **Export:** Click the blue **Export** button (or press **Ctrl+E**) and choose a folder, name and title.
+   The title is shown in the training app and is written to the XML, the GPX track and the video's title tag. You get `Name.mp4`, `Name.gpx` and `Name.xml`.
 
 ### Keyboard shortcuts
 

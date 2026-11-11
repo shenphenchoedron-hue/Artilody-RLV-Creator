@@ -173,6 +173,7 @@ class ExportSettings:
     audio: bool = False
     width: int = 1920
     height: int = 1080
+    title: str = ""  # written to the MP4 title tag
 
 
 def build_command(ffmpeg: str, project: Project, out_path: str, s: ExportSettings) -> Tuple[List[str], int]:
@@ -238,8 +239,10 @@ def build_command(ffmpeg: str, project: Project, out_path: str, s: ExportSetting
         args += ["-tag:v", "avc1", "-brand", "mp42"]
     else:
         args += ["-tag:v", "hvc1"]
-    args += ["-video_track_timescale", "90000", "-movflags", "+faststart", "-map_metadata", "-1",
-             "-progress", "pipe:1", "-nostats", out_path]
+    args += ["-video_track_timescale", "90000", "-movflags", "+faststart", "-map_metadata", "-1"]
+    if s.title:
+        args += ["-metadata", f"title={s.title}"]
+    args += ["-progress", "pipe:1", "-nostats", out_path]
     return args, total
 
 

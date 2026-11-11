@@ -53,7 +53,8 @@ def test_frame_accurate_render(tmp_path, audio, encoder):
     expected = [p.edit.out_to_src(k) % 25 for k in range(p.output_frames)]
 
     out = tmp_path / "out.mp4"
-    st = ExportSettings(encoder=encoder, preset="ultrafast", quality=90, width=320, height=180, audio=audio)
+    st = ExportSettings(encoder=encoder, preset="ultrafast", quality=90, width=320, height=180, audio=audio,
+                        title="Mein Weg ä")
     args, total = build_command(FFMPEG, p, str(out), st)
     assert total == p.output_frames
     subprocess.run(args, check=True, capture_output=True)
@@ -66,6 +67,7 @@ def test_frame_accurate_render(tmp_path, audio, encoder):
         assert "h264" in probe and "avc1" in probe and "mp42" in probe
     else:
         assert "hevc" in probe and "hvc1" in probe
+    assert "Mein Weg ä" in probe
     assert "30 fps" in probe and "yuv420p(tv, bt709, progressive)" in probe
     assert ("Audio:" in probe) == audio
 

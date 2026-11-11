@@ -157,7 +157,11 @@ class RoutePanel(QWidget):
     def _meta_edited(self, *_a) -> None:
         if self._loading or not self.project:
             return
+        old_name = self.project.name
         self.project.name = self.name.text().strip()
+        if self.sender() is self.name and self.title.text().strip() in ("", old_name):
+            # the title still has the automatic value: keep it in step with the name
+            self.title.setText(self.project.name)
         self.project.title = self.title.text().strip()
         self.project.country = self.country.currentText().strip().upper()
         self.changed.emit()

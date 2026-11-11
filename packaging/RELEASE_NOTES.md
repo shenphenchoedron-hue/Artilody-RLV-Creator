@@ -2,6 +2,11 @@
 
 Make Real Life Videos (MP4 + GPX + XML) from GoPro recordings.
 
+### New in 1.1.2: the name you choose is used everywhere
+- When you export under a new name, the route title now changes too. Before, the title kept the name of the GoPro file, so the training app still showed the old name.
+- The export dialog has a *Title* field. It follows the name unless you type your own title.
+- The title is written to the XML, the GPX track and the MP4 video's title tag.
+
 ### New in 1.1.1: H.264 video
 - Videos are now exported in **H.264 / AVC** by default, like the reference RLV files. Some training apps could not open the HEVC videos and reported the video file as missing.
 - H.265 / HEVC can still be chosen under *Format* in the export dialog.
