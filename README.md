@@ -80,8 +80,8 @@ Then start *Artilody RLV Creator* from the application menu, or run `artilody-rl
 1. **Open the video:** Click *Open GoPro video(s)…* or drop the files onto the window. If the ride was
    split into several files, select all of them; they are put in order automatically.
 2. **Find the parts to remove:** Play the film (*Space*), drag in the timeline, or click on the map.
-3. **Mark a part:** Press **I** at the start and **O** at the end, or hold **Shift** and drag in the
-   timeline. You can drag the red edges to adjust the marking.
+3. **Mark a part:** Drag across the timeline with the mouse, or press **I** at the start and **O** at
+   the end. You can drag the red edges to adjust the marking.
 4. **Cut it out:** Press **Delete** or click **✂ Cut out selection**. The part is removed from the video
    and the GPS track, and the film closes the gap. Use *✂ Start→here* and *✂ Here→end* to trim the start
    and end.
@@ -106,6 +106,7 @@ Then start *Artilody RLV Creator* from the application menu, or run `artilody-rl
 | Ctrl + Z / Ctrl + Y | Undo / redo |
 | Ctrl + S | Save project |
 | Ctrl + E | Export |
+| Drag across timeline | Mark a part (click = move playhead, drag in time ruler = scrub) |
 | Mouse wheel on timeline | Zoom (Shift + wheel or middle-drag scrolls) |
 
 ## Technical details
@@ -162,7 +163,7 @@ packaging/      PyInstaller spec, .deb builder, Inno Setup script, icons
 Artilody RLV Creator laver Real Life Videos ud fra GoPro-optagelser:
 
 - GPS-data hentes direkte fra GoPro-filmen.
-- Du klipper uønskede stykker ud: marker med **I** og **O**, og tryk på **Delete**. Det samme stykke
+- Du klipper uønskede stykker ud: træk hen over tidslinjen (eller brug **I** og **O**), og tryk på **Delete**. Det samme stykke
   fjernes automatisk fra GPS-dataene, og filmen samles igen af sig selv.
 - Du kan fortryde med **Ctrl+Z** og gentage med **Ctrl+Y**.
 - Eksporten giver en MP4 (H.265/HEVC, 1080p, 16:9, 30 fps), en GPX-fil og en XML-fil i samme format

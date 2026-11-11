@@ -52,6 +52,23 @@ def _run(args: Sequence[str], timeout: float = 30) -> subprocess.CompletedProces
                           creationflags=_CREATE_NO_WINDOW)
 
 
+def probe_duration(path: str, ffmpeg: Optional[str] = None) -> float:
+    """Duration in seconds as reported by FFmpeg (fallback for unusual MP4 files)."""
+    import re
+
+    ff = ffmpeg or find_ffmpeg()
+    if not ff:
+        return 0.0
+    try:
+        r = _run([ff, "-hide_banner", "-i", path], timeout=60)
+    except Exception:
+        return 0.0
+    m = re.search(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)", r.stderr.decode("utf-8", "replace"))
+    if not m:
+        return 0.0
+    return int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3))
+
+
 @dataclass
 class Encoder:
     name: str  # ffmpeg encoder name

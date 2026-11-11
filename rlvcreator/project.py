@@ -139,6 +139,11 @@ class Project:
             if vt is None:
                 raise mp4.Mp4Error(f"{os.path.basename(p)} contains no video track")
             dur = movie.video_duration
+            if dur < 0.5:
+                from .ffmpeg import probe_duration
+                dur = max(dur, probe_duration(p))
+            if dur <= 0:
+                raise mp4.Mp4Error(f"Could not determine the length of {os.path.basename(p)}")
             frames = max(1, int(round(dur * FPS)))
 
             def sub(f: float, k=k) -> None:

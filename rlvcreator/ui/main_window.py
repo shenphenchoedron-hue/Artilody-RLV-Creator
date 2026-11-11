@@ -21,6 +21,7 @@ from .export_dialog import ExportDialog
 from .mapview import MapView
 from .panels import CutsPanel, GpsPanel, RoutePanel
 from .player import EditedPlayer
+from .thumbs import ThumbnailLoader
 from .timeline import Timeline
 from .videoview import VideoView
 
@@ -42,8 +43,8 @@ SHORTCUTS_HELP = """
 <tr><td><b>Ctrl + Z / Ctrl + Y</b></td><td>Undo / redo</td></tr>
 <tr><td><b>Ctrl + E</b></td><td>Export</td></tr>
 </table>
-<p>In the timeline: click or drag to move the playhead, <b>Shift + drag</b> to mark a part,
-drag the red edges to adjust it, mouse wheel to zoom.</p>
+<p>In the timeline: <b>drag across the film strip</b> to mark a part, click to move the playhead,
+drag in the time ruler to scrub, drag the red edges to adjust the marking, mouse wheel to zoom.</p>
 """
 
 
@@ -76,7 +77,13 @@ class MainWindow(QMainWindow):
         self.project: Optional[Project] = None
         self.dirty = False
         self._thread: Optional[QThread] = None
-        self.resize(1400, 900)
+        self._thumbs: Optional[ThumbnailLoader] = None
+        scr = QApplication.primaryScreen()
+        if scr is not None:
+            av = scr.availableGeometry()
+            self.resize(min(1400, int(av.width() * 0.92)), min(900, int(av.height() * 0.9)))
+        else:
+            self.resize(1400, 900)
         self.setAcceptDrops(True)
 
         # ---------------- video area
@@ -368,9 +375,27 @@ class MainWindow(QMainWindow):
         self.route_panel.set_project(project)
         self.gps_panel.set_project(project)
         self.cuts_panel.set_project(project)
+        self._start_thumbs(project)
         self._edit_changed(refit=True, record_dirty=False)
         self.player.set_project(project)
         self._update_title()
+
+    def _stop_thumbs(self) -> None:
+        if self._thumbs is not None:
+            self._thumbs.stop()
+            self._thumbs.wait(3000)
+            self._thumbs = None
+
+    def _start_thumbs(self, project: Optional[Project]) -> None:
+        self._stop_thumbs()
+        self.timeline.clear_thumbs()
+        if project is None or not project.loaded:
+            self.timeline.out_to_src = None
+            return
+        self.timeline.out_to_src = project.edit.out_to_src
+        self._thumbs = ThumbnailLoader(project, self)
+        self._thumbs.thumbReady.connect(self.timeline.add_thumb)
+        self._thumbs.start()
 
     # -------------------------------------------------------- edit actions
     def _edit_changed(self, refit: bool = False, record_dirty: bool = True) -> None:
@@ -676,6 +701,7 @@ class MainWindow(QMainWindow):
             ev.ignore()
             return
         self.player.pause()
+        self._stop_thumbs()
         self.settings.setValue("geometry", self.saveGeometry())
         super().closeEvent(ev)
 

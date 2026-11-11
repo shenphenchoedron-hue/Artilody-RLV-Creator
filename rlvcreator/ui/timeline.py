@@ -2,17 +2,20 @@
 
 from __future__ import annotations
 
-from typing import List, Optional, Tuple
+import bisect
+from typing import Callable, Dict, List, Optional, Tuple
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QMouseEvent, QPainter, QPainterPath, QPen, QWheelEvent
+from PySide6.QtGui import QColor, QFont, QImage, QMouseEvent, QPainter, QPainterPath, QPen, QWheelEvent
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
 from ..project import FPS
 from .common import fmt_frames
 
 RULER_H = 22
+STRIP_H = 58
 EDGE_PX = 6
+DRAG_PX = 4
 
 
 class Timeline(QWidget):
@@ -21,9 +24,8 @@ class Timeline(QWidget):
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        self.setMinimumHeight(120)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.setFixedHeight(140)
+        self.setFixedHeight(170)
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.ClickFocus)
         self.total = 0
@@ -37,9 +39,33 @@ class Timeline(QWidget):
         self._drag: Optional[str] = None  # 'scrub' | 'select' | 'in' | 'out' | 'pan'
         self._drag_anchor = 0
         self._pan_anchor: Tuple[float, float, float] = (0, 0, 0)
-        self.setToolTip("Click/drag: move playhead  ·  Shift+drag: select a part to cut\n"
-                        "Drag the red edges to adjust the selection  ·  Mouse wheel: zoom  ·  "
-                        "Middle-drag / Alt+drag: pan")
+        self._press_x = 0.0
+        self.out_to_src: Optional[Callable[[int], int]] = None
+        self._thumb_keys: List[int] = []
+        self._thumbs: Dict[int, QImage] = {}
+        self.setToolTip("Drag across the film strip to mark a part, then press Delete to cut it out\n"
+                        "Click: move playhead  ·  Drag in the time ruler: scrub  ·  Drag the red edges to adjust\n"
+                        "Mouse wheel: zoom  ·  Shift+wheel / middle-drag: scroll")
+
+    # ------------------------------------------------------------- thumbs
+    def clear_thumbs(self) -> None:
+        self._thumb_keys = []
+        self._thumbs = {}
+        self.update()
+
+    def add_thumb(self, src_frame: int, img: QImage) -> None:
+        if src_frame not in self._thumbs:
+            bisect.insort(self._thumb_keys, src_frame)
+        self._thumbs[src_frame] = img
+        self.update()
+
+    def _thumb_for(self, src: int) -> Optional[QImage]:
+        keys = self._thumb_keys
+        if not keys:
+            return None
+        i = bisect.bisect_left(keys, src)
+        cands = [k for k in (keys[i - 1] if i > 0 else None, keys[i] if i < len(keys) else None) if k is not None]
+        return self._thumbs[min(cands, key=lambda k: abs(k - src))]
 
     # ---------------------------------------------------------------- model
     def set_data(self, total: int, joins: List[int], profile: List[float], keep_view: bool = False) -> None:
@@ -49,6 +75,8 @@ class Timeline(QWidget):
         self.profile = profile
         if not keep_view or old_total == 0:
             self.view0, self.view1 = 0.0, float(max(1, total))
+        elif self.view0 <= 0 and self.view1 >= old_total - 1:
+            self.view0, self.view1 = 0.0, float(max(1, total))  # was showing everything: keep doing so
         else:
             span = self.view1 - self.view0
             self.view1 = min(float(max(1, total)), self.view0 + span)
@@ -100,12 +128,27 @@ class Timeline(QWidget):
         track = QRectF(0, RULER_H, W, H - RULER_H)
         p.fillRect(track, QColor(44, 48, 58))
 
+        # film strip (thumbnails of the edited film)
+        strip = QRectF(0, RULER_H, W, STRIP_H)
+        p.fillRect(strip, QColor(20, 20, 24))
+        if self._thumb_keys and self.out_to_src:
+            tw = STRIP_H * 16 / 9
+            x = 0.0
+            while x < W:
+                f = min(self.total - 1, self._f(x + tw / 2))
+                img = self._thumb_for(self.out_to_src(f))
+                if img is not None:
+                    p.drawImage(QRectF(x, RULER_H, tw, STRIP_H), img)
+                x += tw
+            p.fillRect(QRectF(0, RULER_H + STRIP_H - 1, W, 1), QColor(0, 0, 0))
+        prof = QRectF(0, RULER_H + STRIP_H, W, H - RULER_H - STRIP_H)
+
         # elevation profile
         if len(self.profile) >= 2:
             lo, hi = min(self.profile), max(self.profile)
             rng = max(5.0, hi - lo)
             path = QPainterPath()
-            top, bot = track.top() + 8, track.bottom() - 4
+            top, bot = prof.top() + 6, prof.bottom() - 4
             first = True
             step = max(1, int(len(self.profile) / max(1, W) / 2))
             s0 = max(0, int(self.view0 / FPS) - 1)
@@ -124,8 +167,12 @@ class Timeline(QWidget):
             p.drawPath(path)
             p.setPen(QColor(170, 190, 210))
             p.setFont(QFont(self.font().family(), 8))
-            p.drawText(QRectF(4, RULER_H + 2, 200, 14), Qt.AlignLeft, f"{hi:.0f} m")
+            p.drawText(QRectF(4, prof.top() + 2, 200, 14), Qt.AlignLeft, f"{hi:.0f} m")
             p.drawText(QRectF(4, H - 16, 200, 14), Qt.AlignLeft, f"{lo:.0f} m")
+        else:
+            p.setPen(QColor(110, 115, 125))
+            p.setFont(QFont(self.font().family(), 8))
+            p.drawText(QRectF(8, prof.top() + 4, W, 14), Qt.AlignLeft, "No GPS data - no elevation profile")
 
         # ruler
         p.fillRect(QRectF(0, 0, W, RULER_H), QColor(26, 27, 32))
@@ -173,6 +220,12 @@ class Timeline(QWidget):
                 p.setPen(QColor(255, 220, 220))
                 p.drawText(r, Qt.AlignCenter, f"✂ {fmt_frames(sel[1] - sel[0])}\nDelete to cut")
 
+        if not sel:
+            p.setPen(QColor(150, 160, 175))
+            p.setFont(QFont(self.font().family(), 9))
+            p.drawText(QRectF(8, H - 20, W - 16, 16), Qt.AlignRight | Qt.AlignVCenter,
+                       "Drag across the timeline to mark a part  ·  Delete = cut it out  ·  Ctrl+Z = undo")
+
         # playhead
         x = self._x(self.playhead)
         p.setPen(QPen(QColor(255, 255, 255), 2))
@@ -219,13 +272,17 @@ class Timeline(QWidget):
             assert sel
             self.sel_in, self.sel_out = sel
             self._drag = edge
-        elif ev.modifiers() & Qt.ShiftModifier:
-            self._drag = "select"
-            self._drag_anchor = self._f(x)
-            self.set_selection(self._drag_anchor, self._drag_anchor)
-        else:
+        elif ev.position().y() <= RULER_H:
             self._drag = "scrub"
             self.seekRequested.emit(min(self._f(x), self.total - 1))
+        else:
+            # click = move playhead, drag = mark a part
+            self._drag = "press"
+            self._press_x = x
+            self._drag_anchor = self._f(x)
+            if ev.modifiers() & Qt.ShiftModifier:
+                self._drag = "select"
+                self.set_selection(self._drag_anchor, self._drag_anchor)
 
     def mouseMoveEvent(self, ev: QMouseEvent) -> None:
         x = ev.position().x()
@@ -233,6 +290,8 @@ class Timeline(QWidget):
             self.setCursor(Qt.SizeHorCursor if self._near_edge(x) else Qt.ArrowCursor)
             return
         f = self._f(x)
+        if self._drag == "press" and abs(x - self._press_x) >= DRAG_PX:
+            self._drag = "select"
         if self._drag == "scrub":
             self.seekRequested.emit(min(f, self.total - 1))
         elif self._drag == "select":
@@ -252,7 +311,11 @@ class Timeline(QWidget):
             self.view1 = self.view0 + span
             self.update()
 
-    def mouseReleaseEvent(self, _ev: QMouseEvent) -> None:
+    def mouseReleaseEvent(self, ev: QMouseEvent) -> None:
+        if self._drag == "press":
+            self.seekRequested.emit(min(self._f(ev.position().x()), self.total - 1))
+        elif self._drag == "select" and self.selection() is None:
+            self.set_selection(None, None)
         self._drag = None
 
     def wheelEvent(self, ev: QWheelEvent) -> None:

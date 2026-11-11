@@ -33,6 +33,9 @@ class Track:
     stsc: List[Tuple[int, int, int]] = field(default_factory=list)  # first_chunk, samples_per_chunk, desc_idx
     stts: List[Tuple[int, int]] = field(default_factory=list)  # count, delta
     edit_offset: float = 0.0  # seconds; presentation time = media time + edit_offset
+    explicit_offsets: List[int] = field(default_factory=list)  # fragmented MP4: offset of every sample
+    trex_duration: int = 0
+    trex_size: int = 0
 
     @property
     def duration_seconds(self) -> float:
@@ -44,6 +47,8 @@ class Track:
 
     def sample_offsets(self) -> List[int]:
         """Absolute file offsets of each sample."""
+        if self.explicit_offsets:
+            return list(self.explicit_offsets)
         offsets: List[int] = []
         n_samples = len(self.sample_sizes)
         n_chunks = len(self.chunk_offsets)
@@ -254,9 +259,119 @@ def _parse_trak(data: bytes, start: int, end: int, movie_timescale: int) -> Trac
     return trk
 
 
+def _parse_fragments(f: BinaryIO, movie: Movie, moov: bytes) -> None:
+    """Fragmented MP4 (moof/traf/trun): collect sample tables from all fragments."""
+    by_id = {t.track_id: t for t in movie.tracks}
+    # defaults from moov/mvex/trex
+    for btype, ps, pe in _iter_boxes(moov):
+        if btype == b"mvex":
+            for bt, cs, ce in _iter_boxes(moov, ps, pe):
+                if bt == b"trex":
+                    tid, _desc, dur, size = struct.unpack(">IIII", moov[cs + 4:cs + 20])
+                    if tid in by_id:
+                        by_id[tid].trex_duration, by_id[tid].trex_size = dur, size
+    f.seek(0, 2)
+    file_size = f.tell()
+    pos = 0
+    found = False
+    while pos + 8 <= file_size:
+        f.seek(pos)
+        hdr = f.read(16)
+        if len(hdr) < 8:
+            break
+        size, btype = struct.unpack(">I4s", hdr[:8])
+        header = 8
+        if size == 1:
+            size = struct.unpack(">Q", hdr[8:16])[0]
+            header = 16
+        elif size == 0:
+            size = file_size - pos
+        if size < header:
+            break
+        if btype == b"moof" and size < 64 * 1024 * 1024:
+            f.seek(pos + header)
+            data = f.read(size - header)
+            moof_start = pos
+            for bt, ts, te in _iter_boxes(data):
+                if bt != b"traf":
+                    continue
+                trk = None
+                base = moof_start
+                def_dur = def_size = 0
+                for b2, cs, ce in _iter_boxes(data, ts, te):
+                    if b2 == b"tfhd":
+                        flags = struct.unpack(">I", data[cs:cs + 4])[0] & 0xFFFFFF
+                        tid = struct.unpack(">I", data[cs + 4:cs + 8])[0]
+                        trk = by_id.get(tid)
+                        q = cs + 8
+                        if flags & 0x01:
+                            base = struct.unpack(">Q", data[q:q + 8])[0]
+                            q += 8
+                        if flags & 0x02:
+                            q += 4
+                        if flags & 0x08:
+                            def_dur = struct.unpack(">I", data[q:q + 4])[0]
+                            q += 4
+                        elif trk:
+                            def_dur = trk.trex_duration
+                        if flags & 0x10:
+                            def_size = struct.unpack(">I", data[q:q + 4])[0]
+                            q += 4
+                        elif trk:
+                            def_size = trk.trex_size
+                    elif b2 == b"trun" and trk is not None:
+                        found = True
+                        vf = struct.unpack(">I", data[cs:cs + 4])[0]
+                        flags = vf & 0xFFFFFF
+                        count = struct.unpack(">I", data[cs + 4:cs + 8])[0]
+                        q = cs + 8
+                        off = base
+                        if flags & 0x01:
+                            off = base + struct.unpack(">i", data[q:q + 4])[0]
+                            q += 4
+                        if flags & 0x04:
+                            q += 4
+                        for _ in range(count):
+                            dur, sz = def_dur, def_size
+                            if flags & 0x100:
+                                dur = struct.unpack(">I", data[q:q + 4])[0]
+                                q += 4
+                            if flags & 0x200:
+                                sz = struct.unpack(">I", data[q:q + 4])[0]
+                                q += 4
+                            if flags & 0x400:
+                                q += 4
+                            if flags & 0x800:
+                                q += 4
+                            if not trk.explicit_offsets and trk.sample_sizes:
+                                trk.explicit_offsets = trk.sample_offsets()
+                            trk.explicit_offsets.append(off)
+                            trk.sample_sizes.append(sz)
+                            trk.stts.append((1, dur))
+                            off += sz
+        pos += size
+    if found:
+        for t in movie.tracks:
+            total = sum(c * d for c, d in t.stts)
+            if total > t.duration:
+                t.duration = total
+        if movie.timescale:
+            longest = max((t.duration_seconds for t in movie.tracks), default=0.0)
+            movie.duration = max(movie.duration, int(longest * movie.timescale))
+
+
 def parse_movie(path: str) -> Movie:
     with open(path, "rb") as f:
         moov = _find_moov(f)
+        movie = _parse_moov(path, moov)
+        if any(bt == b"mvex" for bt, _s, _e in _iter_boxes(moov)):
+            _parse_fragments(f, movie, moov)
+    if not movie.tracks:
+        raise Mp4Error("MP4 file contains no tracks")
+    return movie
+
+
+def _parse_moov(path: str, moov: bytes) -> Movie:
     movie = Movie(path=path)
     for btype, ps, pe in _iter_boxes(moov):
         if btype == b"mvhd":
@@ -268,8 +383,6 @@ def parse_movie(path: str) -> Movie:
     for btype, ps, pe in _iter_boxes(moov):
         if btype == b"trak":
             movie.tracks.append(_parse_trak(moov, ps, pe, movie.timescale))
-    if not movie.tracks:
-        raise Mp4Error("MP4 file contains no tracks")
     return movie
 
 

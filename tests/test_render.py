@@ -66,6 +66,34 @@ def test_frame_accurate_render(tmp_path, audio):
     assert ("Audio:" in probe) == audio
 
 
+@needs_ffmpeg
+def test_fragmented_mp4_duration(tmp_path):
+    """Many downloaded/stock MP4 files are fragmented (moof boxes); length must still be read."""
+    from rlvcreator.mp4 import parse_movie
+
+    src = tmp_path / "frag.mp4"
+    subprocess.run([FFMPEG, "-y", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc2=s=320x240:r=30000/1001:d=5",
+                    "-c:v", "libx264", "-g", "30", "-movflags", "frag_keyframe+empty_moov+default_base_moof",
+                    str(src)], check=True)
+    m = parse_movie(str(src))
+    assert m.video_duration == pytest.approx(5.0, abs=0.05)
+    assert m.video_track.sample_count == 150
+    p = Project()
+    p.load_videos([str(src)])
+    assert p.source_frames == 150
+    p.edit.cut(30, 60)
+    out = tmp_path / "out.mp4"
+    args, total = build_command(FFMPEG, p, str(out), ExportSettings(preset="ultrafast", width=320, height=180))
+    subprocess.run(args, check=True, capture_output=True)
+    assert total == 120 and len(_frame_count(out)) == 120
+
+
+def _frame_count(path):
+    r = subprocess.run([FFMPEG, "-hide_banner", "-i", str(path), "-vf", "showinfo", "-f", "null", "-"],
+                       capture_output=True, text=True, check=True)
+    return re.findall(r" n:\s*\d+\s+pts:", r.stderr)
+
+
 @pytest.fixture(scope="module")
 def gopro_sample(tmp_path_factory):
     path = os.environ.get("RLV_GOPRO_SAMPLE")
