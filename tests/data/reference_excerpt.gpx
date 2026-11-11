@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="GPS Track Editor" xmlns="http://www.topografix.com/GPX/1/1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:gte="http://www.gpstrackeditor.com/xmlschemas/General/1" xmlns:gpxtpx="http://www.garmin.com/xmlschemas/TrackPointExtension/v1" xmlns:gpxx="http://www.garmin.com/xmlschemas/GpxExtensions/v3" targetNamespace="http://www.topografix.com/GPX/1/1" elementFormDefault="qualified" xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
+<metadata>
+	<name>FR_Le_petit_Menglonnais.gpx</name>
+</metadata>
+<trk>
+	<name>Menglonnais</name>
+	<trkseg>
+		<trkpt lat="44.660217" lon="5.420908">
+			<ele>498.13</ele>
+			<time>1999-12-31T23:00:00Z</time>
+			<extensions>
+				<gte:gps speed="16.8"/>
+				<gpxtpx:TrackPointExtension>
+					<gpxtpx:hr>118</gpxtpx:hr>
+					<gpxtpx:cad>70</gpxtpx:cad>
+				</gpxtpx:TrackPointExtension>
+			</extensions>
+		</trkpt>
+		<trkpt lat="44.660252" lon="5.420950">
+			<ele>498.20</ele>
+			<time>1999-12-31T23:00:01Z</time>
+			<extensions>
+				<gte:gps speed="16.9"/>
+				<gpxtpx:TrackPointExtension>
+					<gpxtpx:hr>118</gpxtpx:hr>
+					<gpxtpx:cad>71</gpxtpx:cad>
+				</gpxtpx:TrackPointExtension>
+			</extensions>
+		</trkpt>
+		<trkpt lat="44.660278" lon="5.420995">
+			<ele>498.24</ele>
+			<time>1999-12-31T23:00:02Z</time>
+			<extensions>
+				<gte:gps speed="17.0"/>
+				<gpxtpx:TrackPointExtension>
+					<gpxtpx:hr>118</gpxtpx:hr>
+					<gpxtpx:cad>71</gpxtpx:cad>
+				</gpxtpx:TrackPointExtension>
+			</extensions>
+		</trkpt>
+		<trkpt lat="44.660309" lon="5.421042">
+			<ele>498.36</ele>
+			<time>1999-12-31T23:00:03Z</time>
+			<extensions>
+				<gte:gps speed="17.2"/>
+				<gpxtpx:TrackPointExtension>
+					<gpxtpx:hr>118</gpxtpx:hr>
+					<gpxtpx:cad>71</gpxtpx:cad>
+				</gpxtpx:TrackPointExtension>
+			</extensions>
+		</trkpt>
+		<extensions>
+			<gte:name>#1</gte:name>
+			<gte:color>#fbaf00</gte:color>
+		</extensions>
+	</trkseg>
+</trk>
+</gpx>

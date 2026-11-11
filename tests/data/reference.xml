@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<gpx-import>
+    <name>FR_Le_petit_Menglonnais</name>    
+    <id>e8b20d962bc5404db7ddb76ad877132c</id>
+    <country>FR</country>
+    <title>Menglonnais</title>
+    <video-file-path>FR_Le_petit_Menglonnais.mp4</video-file-path>
+    <gpx-file-path>FR_Le_petit_Menglonnais.gpx</gpx-file-path>
+    <framerate>30.0</framerate>
+    <start-frame>1</start-frame>
+    <end-frame>53490</end-frame>
+    <informations>
+       	<information distance="20" de="Le petit Menglonnais - L&auml;nge: 12,0 km - Anstieg: 154 hm\nSchwierigkeitsgrad: Leicht" en="Le petit Menglonnais\nLength: 12.0 km - Ascent: 365 hm\nDifficulty: Easy" />        
+		<information distance="100" de="cycling.vangestel.online\nLizens: CC BY-NC-SA 4.0\n(Creative Commons - Namensnennung - Nicht-kommerziell)" en="cycling.vangestel.online\nLicense: CC BY-NC-SA 4.0\n(Creative Commons Attribution-NonCommercial-ShareAlike)"/>		
+		<information distance="400" de="Berg im Hintergrund: Le Glandasse" en="Mount Glandasse in the background" />
+		<information distance="5600" de="Menglon" en="Menglon" />
+		<information distance="5960" de="Walnu&szlig;plantagen" en="Walnut orchards" />
+		<information distance="7800" de="Luzerand" en="Luzerand" />
+		<information distance="10250" de="Im Hintergrund: Col de Pennes" en="Col de Pennes in the background" />
+    </informations>
+</gpx-import>
