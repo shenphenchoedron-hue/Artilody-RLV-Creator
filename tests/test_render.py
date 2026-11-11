@@ -62,7 +62,7 @@ def test_frame_accurate_render(tmp_path, audio, encoder):
     assert len(got) == total
     assert got == expected
 
-    probe = subprocess.run([FFMPEG, "-hide_banner", "-i", str(out)], capture_output=True, text=True).stderr
+    probe = subprocess.run([FFMPEG, "-hide_banner", "-i", str(out)], capture_output=True).stderr.decode("utf-8", "replace")
     if encoder == "libx264":
         assert "h264" in probe and "avc1" in probe and "mp42" in probe
     else:
