@@ -7,7 +7,7 @@ import sys
 
 
 def selftest() -> int:
-    """Non-GUI check used by the release builds: FFmpeg, HEVC encoder and Qt Multimedia."""
+    """Non-GUI check used by the release builds: FFmpeg, H.264/HEVC encoders and Qt Multimedia."""
     from PySide6 import QtMultimedia
 
     assert QtMultimedia.QMediaPlayer is not None
@@ -19,8 +19,8 @@ def selftest() -> int:
     print("Artilody RLV Creator", __version__)
     print("ffmpeg:", ff)
     encs = [e.name for e in detect_encoders(ff)] if ff else []
-    print("HEVC encoders:", encs)
-    return 0 if ff and "libx265" in encs else 1
+    print("Video encoders:", encs)
+    return 0 if ff and "libx264" in encs and "libx265" in encs else 1
 
 
 def main() -> int:

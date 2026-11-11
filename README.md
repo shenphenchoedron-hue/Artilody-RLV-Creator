@@ -9,7 +9,7 @@ An RLV is made of three files:
 
 | File | Contents |
 |------|----------|
-| `Name.mp4` | Video in **H.265 / HEVC**, **1920×1080 (16:9)**, **30 fps** |
+| `Name.mp4` | Video in **H.264 / AVC** (default, plays everywhere) or **H.265 / HEVC**, **1920×1080 (16:9)**, **30 fps** |
 | `Name.gpx` | GPS track with one point per second of the film: position, elevation, speed (plus heart rate and cadence if you have them) |
 | `Name.xml` | Route description: name, ID, country, title, frame range and information texts |
 
@@ -35,8 +35,9 @@ information texts, and GPX with `gte:gps speed` and Garmin `TrackPointExtension`
   smoothed so gradients are even.
 - **Optional heart rate and cadence.** GoPro cameras don't record these. You can import a GPX/TCX file
   from a bike computer or watch, and it is matched to the video by GPS time.
+- **H.264 or HEVC.** H.264 is the default because every training app can play it. HEVC gives smaller files.
 - **Hardware encoding** with NVIDIA NVENC, Intel Quick Sync, AMD AMF or Apple VideoToolbox when your
-  computer supports it. Otherwise x265 is used.
+  computer supports it. Otherwise x264 / x265 is used.
 - **Projects** (`.rlvproj`) save your work so you can continue later.
 - FFmpeg is included, so you don't need to install anything else.
 
@@ -118,7 +119,8 @@ Then start *Artilody RLV Creator* from the application menu, or run `artilody-rl
   onto a 10 Hz grid, and then sampled at every whole second of the edited film. GPX time stamps start at
   `1999-12-31T23:00:00Z` like the reference files. On the *GPS* tab you can choose the real UTC recording time instead.
 - **Video:** FFmpeg decodes each chapter, converts it to 30 fps, keeps exactly the selected frames,
-  scales to 1920×1080 (crop to fill, or letterbox) and encodes HEVC with the `hvc1` tag, 2-second GOPs
+  scales to 1920×1080 (crop to fill, or letterbox), converts to limited-range BT.709 4:2:0 and encodes
+  H.264 (High profile, `avc1`, `mp42` brand like the reference files) or HEVC (`hvc1`), with 2-second GOPs
   and `+faststart`.
 - **XML:** Non-ASCII characters are written as HTML named entities (`&auml;`, `&szlig;`, …), and line
   breaks as `\n`, the same way as in the reference RLV files.
@@ -152,7 +154,7 @@ rlvcreator/
   edit.py       Frame-accurate edit model with undo/redo
   project.py    Project: chapters, GPS, edit, metadata, save/load
   exporters.py  GPX and XML writers (reference format)
-  ffmpeg.py     FFmpeg discovery, HEVC encoder detection, rendering
+  ffmpeg.py     FFmpeg discovery, H.264/HEVC encoder detection, rendering
   sensors.py    Optional heart rate / cadence import (GPX/TCX)
   ui/           PySide6 user interface
 tests/          pytest suite (GPMF parsing, editing, exporters, frame-accurate rendering)
@@ -167,7 +169,7 @@ Artilody RLV Creator laver Real Life Videos ud fra GoPro-optagelser:
 - Du klipper uønskede stykker ud: træk hen over tidslinjen (eller brug **I** og **O**), og tryk på **Delete**. Det samme stykke
   fjernes automatisk fra GPS-dataene, og filmen samles igen af sig selv.
 - Du kan fortryde med **Ctrl+Z** og gentage med **Ctrl+Y**.
-- Eksporten giver en MP4 (H.265/HEVC, 1080p, 16:9, 30 fps), en GPX-fil og en XML-fil i samme format
+- Eksporten giver en MP4 (H.264 som standard, eller H.265/HEVC; 1080p, 16:9, 30 fps), en GPX-fil og en XML-fil i samme format
   som standard RLV-filer.
 
 Hent programmet til Windows, Mac, Debian eller Ubuntu under

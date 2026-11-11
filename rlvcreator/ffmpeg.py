@@ -1,4 +1,4 @@
-"""Locating FFmpeg, detecting HEVC encoders and rendering the edited film."""
+"""Locating FFmpeg, detecting H.264/HEVC encoders and rendering the edited film."""
 
 from __future__ import annotations
 
@@ -74,8 +74,22 @@ class Encoder:
     name: str  # ffmpeg encoder name
     label: str
 
+    @property
+    def codec(self) -> str:
+        return codec_of(self.name)
+
+
+CODECS: Dict[str, str] = {
+    "h264": "H.264 / AVC (most compatible)",
+    "hevc": "H.265 / HEVC (smaller files)",
+}
 
 ENCODER_LABELS: Dict[str, str] = {
+    "libx264": "x264 (software, best quality)",
+    "h264_nvenc": "NVIDIA NVENC (hardware, fast)",
+    "h264_qsv": "Intel Quick Sync (hardware, fast)",
+    "h264_amf": "AMD AMF (hardware, fast)",
+    "h264_videotoolbox": "Apple VideoToolbox (hardware, fast)",
     "libx265": "x265 (software, best quality)",
     "hevc_nvenc": "NVIDIA NVENC (hardware, fast)",
     "hevc_qsv": "Intel Quick Sync (hardware, fast)",
@@ -83,9 +97,15 @@ ENCODER_LABELS: Dict[str, str] = {
     "hevc_videotoolbox": "Apple VideoToolbox (hardware, fast)",
 }
 
+SOFTWARE_ENCODERS = {"libx264", "libx265"}
+
+
+def codec_of(encoder: str) -> str:
+    return "h264" if "264" in encoder else "hevc"
+
 
 def detect_encoders(ffmpeg: str) -> List[Encoder]:
-    """Return HEVC encoders that are actually usable on this machine."""
+    """Return H.264 and HEVC encoders that are actually usable on this machine."""
     try:
         listing = _run([ffmpeg, "-hide_banner", "-encoders"]).stdout.decode("utf-8", "replace")
     except Exception:
@@ -94,7 +114,7 @@ def detect_encoders(ffmpeg: str) -> List[Encoder]:
     for name, label in ENCODER_LABELS.items():
         if f" {name} " not in listing:
             continue
-        if name != "libx265":
+        if name not in SOFTWARE_ENCODERS:
             # hardware encoders are compiled in everywhere; test that the device exists
             try:
                 r = _run([ffmpeg, "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i",
@@ -110,6 +130,25 @@ def detect_encoders(ffmpeg: str) -> List[Encoder]:
 def encoder_args(name: str, quality: int, preset: str) -> List[str]:
     """quality: 0..100 slider (higher = better)."""
     crf = int(round(34 - quality * 0.16))  # 100 -> 18, 50 -> 26, 0 -> 34
+    if codec_of(name) == "h264":
+        # H.264 needs a few more bits than HEVC for the same quality
+        crf = max(14, crf - 3)
+        prof = ["-profile:v", "high", "-level:v", "4.1"]
+        if name == "libx264":
+            return ["-c:v", "libx264", "-preset", preset, "-crf", str(crf), *prof,
+                    "-g", "60", "-keyint_min", "30"]
+        if name == "h264_nvenc":
+            return ["-c:v", "h264_nvenc", "-preset", "p5", "-rc", "vbr", "-cq", str(crf), "-b:v", "0",
+                    "-g", "60", "-profile:v", "high"]
+        if name == "h264_qsv":
+            return ["-c:v", "h264_qsv", "-global_quality", str(crf), "-g", "60", "-profile:v", "high"]
+        if name == "h264_amf":
+            return ["-c:v", "h264_amf", "-rc", "cqp", "-qp_i", str(crf), "-qp_p", str(crf), "-g", "60",
+                    "-profile:v", "high"]
+        if name == "h264_videotoolbox":
+            return ["-c:v", "h264_videotoolbox", "-q:v", str(max(1, min(100, quality))), "-g", "60",
+                    "-profile:v", "high"]
+        raise ValueError(f"Unknown encoder {name}")
     if name == "libx265":
         return ["-c:v", "libx265", "-preset", preset, "-crf", str(crf),
                 "-x265-params", "log-level=error:keyint=60:min-keyint=30"]
@@ -127,7 +166,7 @@ def encoder_args(name: str, quality: int, preset: str) -> List[str]:
 
 @dataclass
 class ExportSettings:
-    encoder: str = "libx265"
+    encoder: str = "libx264"
     quality: int = 62  # -> CRF 24
     preset: str = "medium"
     fit: str = "crop"  # 'crop' fills 16:9 by cropping, 'pad' letterboxes
@@ -147,10 +186,10 @@ def build_command(ffmpeg: str, project: Project, out_path: str, s: ExportSetting
     total = 0
     W, H = s.width, s.height
     if s.fit == "pad":
-        scale = (f"scale={W}:{H}:force_original_aspect_ratio=decrease:flags=lanczos,"
+        scale = (f"scale={W}:{H}:force_original_aspect_ratio=decrease:flags=lanczos:out_range=tv,"
                  f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:color=black")
     else:
-        scale = f"scale={W}:{H}:force_original_aspect_ratio=increase:flags=lanczos,crop={W}:{H}"
+        scale = f"scale={W}:{H}:force_original_aspect_ratio=increase:flags=lanczos:out_range=tv,crop={W}:{H}"
     for ch in project.chapters:
         # kept frame ranges inside this chapter, in chapter-local frames
         local: List[Tuple[int, int]] = []
@@ -173,7 +212,8 @@ def build_command(ffmpeg: str, project: Project, out_path: str, s: ExportSetting
         total += frames
         filters.append(
             f"[{n_in}:v]setpts=PTS-STARTPTS,fps={FPS},tpad=stop_mode=clone:stop_duration=2,"
-            f"trim=end_frame={nf},select='{cond}',setpts=N/({FPS}*TB),{scale},setsar=1,format=yuv420p[v{n_in}]")
+            f"trim=end_frame={nf},select='{cond}',setpts=N/({FPS}*TB),{scale},setsar=1,format=yuv420p,"
+            f"setparams=range=tv:colorspace=bt709:color_primaries=bt709:color_trc=bt709[v{n_in}]")
         concat_inputs.append(f"[v{n_in}]")
         if audio:
             acond = "+".join(f"between(t\\,{a / FPS:.6f}\\,{b / FPS - 1e-6:.6f})" for a, b in rel)
@@ -190,8 +230,15 @@ def build_command(ffmpeg: str, project: Project, out_path: str, s: ExportSetting
     if audio:
         args += ["-map", "[aout]", "-c:a", "aac", "-b:a", "160k"]
     args += encoder_args(s.encoder, s.quality, s.preset)
-    args += ["-pix_fmt", "yuv420p", "-r", str(FPS), "-frames:v", str(total),
-             "-tag:v", "hvc1", "-movflags", "+faststart", "-map_metadata", "-1",
+    # limited-range BT.709 4:2:0 like normal camera/web video (GoPro files are full range)
+    args += ["-pix_fmt", "yuv420p", "-color_range", "tv", "-colorspace", "bt709",
+             "-color_primaries", "bt709", "-color_trc", "bt709",
+             "-r", str(FPS), "-frames:v", str(total)]
+    if codec_of(s.encoder) == "h264":
+        args += ["-tag:v", "avc1", "-brand", "mp42"]
+    else:
+        args += ["-tag:v", "hvc1"]
+    args += ["-video_track_timescale", "90000", "-movflags", "+faststart", "-map_metadata", "-1",
              "-progress", "pipe:1", "-nostats", out_path]
     return args, total
 

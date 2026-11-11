@@ -1,4 +1,4 @@
-"""Export dialog: writes the MP4 (HEVC 1080p30), GPX and XML files."""
+"""Export dialog: writes the MP4 (H.264 or HEVC, 1080p30), GPX and XML files."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QFileDialog, QForm
                                QSlider, QVBoxLayout)
 
 from .. import exporters
-from ..ffmpeg import Encoder, ExportSettings, Renderer, build_command, detect_encoders, find_ffmpeg
+from ..ffmpeg import CODECS, Encoder, ExportSettings, Renderer, build_command, detect_encoders, find_ffmpeg
 from ..project import Project, sanitize_name
 from .common import fmt_frames
 
@@ -74,17 +74,27 @@ class ExportDialog(QDialog):
             self.do_gpx.setChecked(False)
             self.do_gpx.setEnabled(False)
 
-        vid = QGroupBox("Video:  MP4  ·  H.265 / HEVC  ·  1920×1080 (16:9)  ·  30 fps")
+        vid = QGroupBox("Video:  MP4  ·  1920×1080 (16:9)  ·  30 fps")
         v = QFormLayout(vid)
+        self._encs: List[Encoder] = []
+        self.codec = QComboBox()
+        for key, label in CODECS.items():
+            self.codec.addItem(label, key)
+        self.codec.setCurrentIndex(max(0, self.codec.findData(self.settings.value("codec", "h264", str))))
+        self.codec.setToolTip("H.264 plays in every training app and player. "
+                              "H.265/HEVC gives smaller files but is not supported everywhere.")
+        self.codec.currentIndexChanged.connect(self._fill_encoders)
+        self.codec.currentIndexChanged.connect(lambda _i: self._qlabel())
+        v.addRow("Format:", self.codec)
         self.encoder = QComboBox()
-        self.encoder.addItem("Detecting encoders…", "libx265")
+        self.encoder.addItem("Detecting encoders…", "libx264")
         v.addRow("Encoder:", self.encoder)
         self.preset = QComboBox()
         for label, val in [("Fastest", "ultrafast"), ("Very fast", "veryfast"), ("Fast", "fast"),
                            ("Balanced", "medium"), ("Small file (slow)", "slow")]:
             self.preset.addItem(label, val)
         self.preset.setCurrentIndex(self.settings.value("preset_idx", 2, int))
-        self.preset.setToolTip("Speed / file size trade-off for the x265 software encoder")
+        self.preset.setToolTip("Speed / file size trade-off for the x264 / x265 software encoders")
         v.addRow("Speed:", self.preset)
         qrow = QHBoxLayout()
         self.quality = QSlider(Qt.Horizontal)
@@ -145,20 +155,29 @@ class ExportDialog(QDialog):
     def _qlabel(self) -> None:
         q = self.quality.value()
         crf = int(round(34 - q * 0.16))
+        if self.codec.currentData() == "h264":
+            crf = max(14, crf - 3)
         self.qlabel.setText(f"{q}  (CRF {crf})")
 
     def _set_encoders(self, encs: List[Encoder]) -> None:
+        self._encs = encs
+        self._fill_encoders()
+
+    def _fill_encoders(self) -> None:
+        if not self.ffmpeg:
+            return
+        codec = self.codec.currentData()
+        encs = [e for e in self._encs if e.codec == codec]
         self.encoder.clear()
         if not encs:
-            self.encoder.addItem("No HEVC encoder available in this FFmpeg", "")
-            self.do_video.setChecked(False)
-            self.do_video.setEnabled(False)
+            self.encoder.addItem("No encoder for this format in FFmpeg", "")
+            self.export_btn.setEnabled(not self.do_video.isChecked())
             return
+        self.export_btn.setEnabled(True)
         for e in encs:
             self.encoder.addItem(e.label, e.name)
-        last = self.settings.value("encoder", "libx265", str)
-        i = self.encoder.findData(last)
-        self.encoder.setCurrentIndex(max(0, i))
+        last = self.settings.value("encoder_" + codec, "", str)
+        self.encoder.setCurrentIndex(max(0, self.encoder.findData(last)))
 
     def _browse(self) -> None:
         d = QFileDialog.getExistingDirectory(self, "Export folder", self.folder.text())
@@ -192,6 +211,9 @@ class ExportDialog(QDialog):
                    if cb.isChecked()]
         if not targets:
             return
+        if self.do_video.isChecked() and not self.encoder.currentData():
+            QMessageBox.warning(self, "Export", "No video encoder is available for this format.")
+            return
         src_paths = {os.path.abspath(c.path) for c in self.project.chapters}
         if any(os.path.abspath(t) in src_paths for t in targets):
             QMessageBox.warning(self, "Export", "The export would overwrite a source video. Choose another name.")
@@ -202,7 +224,8 @@ class ExportDialog(QDialog):
                 + "\n".join(os.path.basename(e) for e in existing)) != QMessageBox.Yes:
             return
         self.settings.setValue("export_dir", folder)
-        self.settings.setValue("encoder", self.encoder.currentData())
+        self.settings.setValue("codec", self.codec.currentData())
+        self.settings.setValue("encoder_" + self.codec.currentData(), self.encoder.currentData())
         self.settings.setValue("preset_idx", self.preset.currentIndex())
         self.settings.setValue("quality", self.quality.value())
         self.settings.setValue("fit_idx", self.fit.currentIndex())
@@ -220,7 +243,7 @@ class ExportDialog(QDialog):
         if not self.do_video.isChecked():
             self.status.setText("✔ Files written to " + folder)
             return
-        st = ExportSettings(encoder=self.encoder.currentData() or "libx265", quality=self.quality.value(),
+        st = ExportSettings(encoder=self.encoder.currentData(), quality=self.quality.value(),
                             preset=self.preset.currentData(), fit=self.fit.currentData(),
                             audio=self.audio.isChecked())
         try:

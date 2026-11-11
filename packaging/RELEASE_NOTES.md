@@ -2,6 +2,11 @@
 
 Make Real Life Videos (MP4 + GPX + XML) from GoPro recordings.
 
+### New in 1.1.1: H.264 video
+- Videos are now exported in **H.264 / AVC** by default, like the reference RLV files. Some training apps could not open the HEVC videos and reported the video file as missing.
+- H.265 / HEVC can still be chosen under *Format* in the export dialog.
+- The video is written as limited-range BT.709 (GoPro records full range), which all players expect.
+
 ### New in 1.1.0: a fresh look
 - New dark theme with blue accents and a matching set of icons.
 - Welcome screen with a big *Open GoPro video(s)…* button and a three-step guide (Open → Cut → Export). Files can be dropped onto it.
@@ -13,7 +18,7 @@ Make Real Life Videos (MP4 + GPX + XML) from GoPro recordings.
 - Reads GPS from GoPro videos (GPS5 / GPS9). Chapter files of one ride are joined automatically.
 - Cut out parts of the film: the same seconds are removed from the video and the GPS data, and the film closes the gap at once.
 - Unlimited undo / redo. Removed parts can also be restored one by one.
-- Exports MP4 in H.265/HEVC, 1920×1080 (16:9), 30 fps, plus GPX and XML files in the RLV reference format.
+- Exports MP4 in H.264 (or H.265/HEVC), 1920×1080 (16:9), 30 fps, plus GPX and XML files in the RLV reference format.
 - Map, elevation profile, information texts (de/en), and optional heart rate / cadence import.
 
 ### Downloads

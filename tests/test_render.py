@@ -37,8 +37,8 @@ def _frame_levels(path):
 
 
 @needs_ffmpeg
-@pytest.mark.parametrize("audio", [False, True])
-def test_frame_accurate_render(tmp_path, audio):
+@pytest.mark.parametrize("audio,encoder", [(False, "libx264"), (True, "libx264"), (False, "libx265")])
+def test_frame_accurate_render(tmp_path, audio, encoder):
     a = tmp_path / "GH010001.MP4"
     b = tmp_path / "GH020001.MP4"
     _make_chapter(a, 4, 30, 0)
@@ -53,7 +53,7 @@ def test_frame_accurate_render(tmp_path, audio):
     expected = [p.edit.out_to_src(k) % 25 for k in range(p.output_frames)]
 
     out = tmp_path / "out.mp4"
-    st = ExportSettings(preset="ultrafast", quality=90, width=320, height=180, audio=audio)
+    st = ExportSettings(encoder=encoder, preset="ultrafast", quality=90, width=320, height=180, audio=audio)
     args, total = build_command(FFMPEG, p, str(out), st)
     assert total == p.output_frames
     subprocess.run(args, check=True, capture_output=True)
@@ -62,7 +62,11 @@ def test_frame_accurate_render(tmp_path, audio):
     assert got == expected
 
     probe = subprocess.run([FFMPEG, "-hide_banner", "-i", str(out)], capture_output=True, text=True).stderr
-    assert "hevc" in probe and "hvc1" in probe and "30 fps" in probe
+    if encoder == "libx264":
+        assert "h264" in probe and "avc1" in probe and "mp42" in probe
+    else:
+        assert "hevc" in probe and "hvc1" in probe
+    assert "30 fps" in probe and "yuv420p(tv, bt709, progressive)" in probe
     assert ("Audio:" in probe) == audio
 
 

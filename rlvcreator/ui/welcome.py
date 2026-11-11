@@ -110,7 +110,7 @@ class WelcomeScreen(QWidget):
         steps.addWidget(_Step("1", "film", "Open", "GPS data is read straight from the GoPro video."))
         steps.addWidget(_Step("2", "scissors", "Cut", "Drag across the timeline and press Delete. "
                                                      "Video and GPS are cut together. Ctrl+Z undoes."))
-        steps.addWidget(_Step("3", "export", "Export", "MP4 (HEVC 1080p, 30 fps), GPX and XML, ready to ride."))
+        steps.addWidget(_Step("3", "export", "Export", "MP4 (H.264 1080p, 30 fps), GPX and XML, ready to ride."))
         steps.addStretch()
         lay.addLayout(steps)
         lay.addStretch(3)
