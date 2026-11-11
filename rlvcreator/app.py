@@ -31,14 +31,14 @@ def main() -> int:
         print(__version__)
         return 0
     os.environ.setdefault("QT_LOGGING_RULES", "qt.multimedia.ffmpeg*=false")
-    # The Qt Wayland backend shipped with PySide6 draws popups and dialogs garbled on some
-    # compositors (e.g. KDE Plasma). XWayland (xcb) is reliable, so prefer it on Linux
-    # unless the user chose a platform or passes --wayland.
-    if sys.platform.startswith("linux") and "QT_QPA_PLATFORM" not in os.environ:
-        if "--wayland" in sys.argv:
-            sys.argv.remove("--wayland")
-        elif os.environ.get("DISPLAY"):
-            os.environ["QT_QPA_PLATFORM"] = "xcb"
+    # On Wayland, Qt's default shared-memory backing store sometimes hands popups and dialogs
+    # to the compositor with a mismatched buffer stride (combo box lists and message boxes
+    # show skewed/diagonal garbage until repainted). Composing widget windows through Qt RHI
+    # (OpenGL/EGL buffers) avoids the shm path entirely and renders them correctly.
+    if sys.platform.startswith("linux") and os.environ.get("WAYLAND_DISPLAY") \
+            and os.environ.get("QT_QPA_PLATFORM", "wayland").startswith("wayland"):
+        os.environ.setdefault("QT_WIDGETS_RHI", "1")
+        os.environ.setdefault("QT_WIDGETS_RHI_BACKEND", "opengl")
     from PySide6.QtCore import QCoreApplication
     from PySide6.QtGui import QIcon
     from PySide6.QtWidgets import QApplication

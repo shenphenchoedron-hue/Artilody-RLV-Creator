@@ -1,4 +1,4 @@
 """Artilody RLV Creator - create Real Life Videos from GoPro recordings."""
 
-__version__ = "1.0.2"
+__version__ = "1.0.3"
 APP_NAME = "Artilody RLV Creator"
